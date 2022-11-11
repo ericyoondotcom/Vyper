@@ -1,9 +1,13 @@
 event Eliminated:
-    address: indexed(address)
-    timestamp: uint256
+    eliminatedPlayer: indexed(address)
+    eliminatedTimestamp: uint256
+
+event Survived:
+    survivedPlayer: indexed(address)
+    survivedTimestamp: uint256
 
 players: public(address[100])
-playersLen = public(uint256)
+playersLen: public(uint256)
 isPlaying: public(HashMap[address, bool])
 hasLost: public(HashMap[address, bool])
 odds: uint256
@@ -16,6 +20,7 @@ def __init__():
     self.odds = 0
     self.playersTurn = 0
     self.creator = msg.sender
+    self.odds = 5
 
 @external
 def setOdds(oneInThisMany: uint256):
@@ -26,8 +31,8 @@ def setOdds(oneInThisMany: uint256):
 @external
 def addPlayer(player: address):
     assert player != empty(address)
-    assert !self.isPlaying[player]
-    assert !self.hasLost[player]
+    assert self.isPlaying[player] == False
+    assert self.hasLost[player] == False
     self.players[self.playersLen] = player
     self.playersLen += 1
     self.isPlaying[player] = True
@@ -35,18 +40,37 @@ def addPlayer(player: address):
 @internal
 def lose(player: address):
     assert player != empty(address)
-    assert self.isPlaying[player]
-    assert !self.hasLost[player]
-    self.players = empty(address[100])
+    assert self.isPlaying[player] == True
+    assert self.hasLost[player] == False
+
+    # clear players array and isPlaying map
+    for i in range(100):
+        if i >= self.playersLen: # range() only takes static integers
+            break
+        self.isPlaying[self.players[i]] = empty(bool)
+        self.players[i] = empty(address)
     self.playersLen = 0
-    self.isPlaying = empty(HashMap[address, bool])
-    self.losers[player] = True
+    self.playersTurn = 0
+    self.hasLost[player] = True
+
+    log Eliminated(player, block.timestamp)
 
 @internal
 def random() -> uint256:
+    return block.timestamp % self.odds
 
-@external play():
-
-@external isALoser(player: address) -> bool:
+@external
+def play():
+    choice: uint256 = self.random()
+    nextPlayer: address = self.players[self.playersTurn]
+    if choice == 0:
+        self.lose(nextPlayer)
+    else:
+        self.playersTurn += 1
+        self.playersTurn = self.playersTurn % self.playersLen
+        log Survived(nextPlayer, block.timestamp)
+    
+@external
+def isALoser(player: address) -> bool:
     assert player != empty(address)
-    return 
+    return self.hasLost[player] == True
